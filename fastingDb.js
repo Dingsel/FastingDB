@@ -4,10 +4,11 @@ const maxPropertyLength = Math.pow(2, 15) - 1;
 // prevents multiple instances for one dynamic property source
 const DB_Instances = new WeakMap();
 
-
 export class FastingDB {
     /**@private */
     vectorProps = ["x", "y", "z"]
+    /**@private */
+    nativeStorageTypes = ["boolean", "number", "object"]
     /**@private */
     storageType;
     /**@private */
@@ -61,18 +62,17 @@ export class FastingDB {
     }
     /**
      * @param {string} key 
+     * 
      */
     get(key) {
-        const { vectorProps } = this
+        const { nativeStorageTypes } = this
         const storages = this.getPropertyIds(key);
         if (storages.length <= 1) {
             if (!storages[0]) return undefined
             const nativeType = this.storageType.getDynamicProperty(storages[0]);
             if (
                 !nativeType
-                || typeof nativeType == "boolean"
-                || typeof nativeType == "number"
-                || (typeof nativeType == "object" && vectorProps.every(prop => typeof nativeType[prop] === 'number') && Object.keys(nativeType).length === 3)
+                || nativeStorageTypes.includes(typeof nativeType)
             ) return nativeType;
             // @ts-ignore
             return JSON.parse(nativeType);
@@ -114,11 +114,11 @@ export class FastingDB {
         });
 
         switch (typeof value) {
-            case "number": { storageType.setDynamicProperty(__id + key + "0", value); break; }
-            case "boolean": { storageType.setDynamicProperty(__id + key + "0", value); break; }
+            case "number": { storageType.setDynamicProperty(__id + key + "_0", value); break; }
+            case "boolean": { storageType.setDynamicProperty(__id + key + "_0", value); break; }
             case "object": {
                 vectorProps.every(prop => typeof value[prop] === 'number') && Object.keys(value).length === 3 ?
-                    storageType.setDynamicProperty(__id + key + "0", value)
+                    storageType.setDynamicProperty(__id + key + "_0", value)
                     : this.setString(key, value);
                 break;
             }
@@ -178,7 +178,11 @@ export class FastingDB {
      */
     *constuctEntries(skipGet = false) {
         const { __id } = this;
-        const props = this.getPropertyIds();
+        const props = this.getPropertyIds().map(x => {
+           const arr = x.split("_")
+           arr.pop()
+           return arr.join("_")
+        });
         /** @type {string[]}*/
         const keys = [];
         for (const prop of props) {
